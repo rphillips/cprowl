@@ -14,6 +14,10 @@ def configure(conf):
                    mandatory=True,
                    args='--cflags --libs')
 
+    #conf.check_cfg(package='libxml-2.0',
+    #               mandatory=True,
+    #               args='--cflags --libs')
+
 def build(bld):
     cprowl = bld.new_task_gen()
     cprowl.features = ['cc', 'cprogram']
@@ -21,3 +25,4 @@ def build(bld):
     cprowl.name = "cprowl"
     cprowl.target = "cprowl"
     cprowl.install_path = '${PREFIX}/bin'
+    cprowl.uselib = 'LIBCURL'

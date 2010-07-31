@@ -1,0 +1,22 @@
+cprowl : prowl client
+  usage:
+    cprowl [-a apikey] [-n appname] [-e event] [-d description] [-p priority]
+
+    apikey:
+      prowl api key
+
+    appname:
+      string : application name (default: "cprowl")
+
+    event:
+      string : event name (default: "event")
+
+    description:
+      string : description (default: "")
+
+    priority:
+      -2 : very low
+      -1 : moderate
+       0 : normal (default)
+       1 : high
+       2 : emergency
