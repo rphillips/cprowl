@@ -17,6 +17,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <stdlib.h>
+#include "cprowl_config.h"
 
 #ifndef TRUE
 #define TRUE 1
@@ -187,7 +188,7 @@ cprowl_add(cprowl_request_add_t *req, int debug, int *http_error_code)
 
 static void usage()
 {
-    fprintf(stderr, "cprowl : prowl client\n");
+    fprintf(stderr, "%s v%s : prowl client\n", CPROWL_NAME, CPROWL_VERSION);
     fprintf(stderr, "  usage:\n");
     fprintf(stderr, "    cprowl [-a apikey] [-n appname] [-e event] [-d description] [-p priority]\n");
     fprintf(stderr, "\n");
@@ -209,5 +210,6 @@ static void usage()
     fprintf(stderr, "       0 : normal (default)\n");
     fprintf(stderr, "       1 : high\n");
     fprintf(stderr, "       2 : emergency\n");
+    fprintf(stderr, "\n");
     exit(0);
 }
