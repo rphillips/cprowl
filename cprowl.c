@@ -3,27 +3,38 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define CPROWL_MAX_LENGTH_API   80
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 #define CPROWL_ADD_ENDPOINT     "https://prowl.weks.net/publicapi/add"
+#define CPROWL_MAX_LENGTH_API   80
 #define CPROWL_MAX_LENGTH_APP   256
 #define CPROWL_MAX_LENGTH_EVENT 1024
 #define CPROWL_MAX_LENGTH_DESC  10000
+#define CPROWL_MAX_LENGTH_PRIORITY 5
 
 typedef struct {
     char api[CPROWL_MAX_LENGTH_API];
     char app[CPROWL_MAX_LENGTH_APP];
     char event[CPROWL_MAX_LENGTH_EVENT];
     char description[CPROWL_MAX_LENGTH_DESC];
-    int  priority;
+    char priority[CPROWL_MAX_LENGTH_PRIORITY];
 } cprowl_request_add_t;
 
-CURLcode cprowl_add(cprowl_request_add_t *req, int *http_error_code);
-void     usage();
+static CURLcode cprowl_add(cprowl_request_add_t *req, int debug, 
+                           int *http_error_code);
+static void     usage();
 
 int main(int argc, char *argv[])
 {
     int ch;
     int http_error_code;
+    int debug = FALSE;
     CURLcode res;
     cprowl_request_add_t req = { "", "cprowl", "event", "description", 0 };
     
@@ -34,10 +45,11 @@ int main(int argc, char *argv[])
         { "description", required_argument, NULL, 'd' },
         { "priority", required_argument, NULL, 'p' },
         { "help", no_argument, NULL, 'h' },
+        { "debug", no_argument, NULL, 'z' },
         { NULL, 0, NULL, 0 }
     };
 
-    while ((ch = getopt_long(argc, argv, "p:a:n:e:d:h", longopts, NULL)) != -1) {
+    while ((ch = getopt_long(argc, argv, "p:a:n:e:d:hz", longopts, NULL)) != -1) {
         switch (ch) {
         case 'a':
             strncpy(req.api, optarg, CPROWL_MAX_LENGTH_API);
@@ -52,7 +64,10 @@ int main(int argc, char *argv[])
             strncpy(req.description, optarg, CPROWL_MAX_LENGTH_DESC);
             break;
         case 'p':
-            req.priority = atoi(optarg);
+            strncpy(req.priority, optarg, CPROWL_MAX_LENGTH_PRIORITY);
+            break;
+        case 'z':
+            debug = TRUE;
             break;
         case 'h':
         default:
@@ -62,7 +77,7 @@ int main(int argc, char *argv[])
 
     /* argument validation */
     if (!strcmp(req.api, "")) {
-        fprintf(stderr, "invalid api key");
+        fprintf(stderr, "invalid api key\n");
         exit(1);
     }
 
@@ -70,7 +85,7 @@ int main(int argc, char *argv[])
     curl_global_init(CURL_GLOBAL_ALL);
 
     /* perform rpc call */
-    if ((res=cprowl_add(&req, &http_error_code)) != CURLE_OK) {
+    if ((res=cprowl_add(&req, debug, &http_error_code)) != CURLE_OK) {
         fprintf(stderr, "%s", curl_easy_strerror(res));
         exit(1);
     }
@@ -91,12 +106,22 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-CURLcode cprowl_add(cprowl_request_add_t *req, int *http_error_code)
+static size_t 
+curl_write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+    /* noop */
+    return (size * nmemb);
+}
+
+static CURLcode 
+cprowl_add(cprowl_request_add_t *req, int debug, int *http_error_code)
 {
     CURL *curl;
     CURLcode res;
     struct curl_httppost *formpost=NULL;
     struct curl_httppost *lastptr=NULL;
+
+    *http_error_code = 0;
 
     if ((curl = curl_easy_init()) == NULL) {
         return CURLE_OUT_OF_MEMORY;
@@ -123,27 +148,36 @@ CURLcode cprowl_add(cprowl_request_add_t *req, int *http_error_code)
                  CURLFORM_PTRNAME , "description",
                  CURLFORM_PTRCONTENTS,  req->description,
                  CURLFORM_END);
+    curl_formadd(&formpost,
+                 &lastptr,
+                 CURLFORM_PTRNAME , "priority",
+                 CURLFORM_PTRCONTENTS,  req->priority,
+                 CURLFORM_END);
 
     /* perform connection */
     curl_easy_setopt(curl, CURLOPT_URL, CPROWL_ADD_ENDPOINT);
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
     curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
 
     res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, http_error_code);
+    }
 
     curl_formfree(formpost);
     curl_easy_cleanup(curl);
     return res;
 }
 
-void usage()
+static void usage()
 {
     fprintf(stderr, "cprowl : prowl client\n");
     fprintf(stderr, "  usage:\n");
     fprintf(stderr, "    cprowl [-a apikey] [-n appname] [-e event] [-d description] [-p priority]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    apikey:\n");
-    fprintf(stderr, "      prowl api key\n");
+    fprintf(stderr, "      string : prowl api key\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    appname:\n");
     fprintf(stderr, "      string : application name (default: \"cprowl\")\n");

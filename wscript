@@ -6,17 +6,9 @@ def configure(conf):
     conf.check_tool('compiler_cc')
     if not conf.env.CC: conf.fatal('c compiler not found')
 
-    conf.check_cfg(package='openssl',
-                   mandatory=True,
-                   args='--cflags --libs')
-
     conf.check_cfg(package='libcurl',
                    mandatory=True,
                    args='--cflags --libs')
-
-    #conf.check_cfg(package='libxml-2.0',
-    #               mandatory=True,
-    #               args='--cflags --libs')
 
 def build(bld):
     cprowl = bld.new_task_gen()

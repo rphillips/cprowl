@@ -1,3 +1,18 @@
+Dependencies
+------------
+
+- libcurl (w/ SSL support)
+
+Compile
+-------
+
+# ./waf configure
+# ./waf
+# sudo ./waf install
+
+Usage
+-----
+
 cprowl : prowl client
   usage:
     cprowl [-a apikey] [-n appname] [-e event] [-d description] [-p priority]
