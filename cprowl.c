@@ -285,6 +285,8 @@ static void usage()
     fprintf(stderr, "    apikey:\n");
     fprintf(stderr, "      string : prowl api key\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "      Note: the -a option can be called more than once to provide more than one api key.\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "    appname:\n");
     fprintf(stderr, "      string : application name (default: \"cprowl\")\n");
     fprintf(stderr, "\n");
