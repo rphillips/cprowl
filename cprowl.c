@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "cprowl_config.h"
+#include "queue.h"
 
 #ifndef TRUE
 #define TRUE 1
@@ -28,23 +29,37 @@
 #endif
 
 #define CPROWL_ADD_ENDPOINT     "https://prowl.weks.net/publicapi/add"
-#define CPROWL_MAX_LENGTH_API   80
+#define CPROWL_MAX_LENGTH_API   40
 #define CPROWL_MAX_LENGTH_APP   256
 #define CPROWL_MAX_LENGTH_EVENT 1024
 #define CPROWL_MAX_LENGTH_DESC  10000
 #define CPROWL_MAX_LENGTH_PRIORITY 5
 
-typedef struct {
+typedef struct api_node {
     char api[CPROWL_MAX_LENGTH_API];
-    char app[CPROWL_MAX_LENGTH_APP];
-    char event[CPROWL_MAX_LENGTH_EVENT];
-    char description[CPROWL_MAX_LENGTH_DESC];
-    char priority[CPROWL_MAX_LENGTH_PRIORITY];
-} cprowl_request_add_t;
+    SLIST_ENTRY(api_node) nodes;
+} api_node_t;
 
-static CURLcode cprowl_add(cprowl_request_add_t *req, int debug, 
+typedef struct {
+    SLIST_HEAD(api_node_head, api_node) api_list;
+    char app[CPROWL_MAX_LENGTH_APP + 1];
+    char event[CPROWL_MAX_LENGTH_EVENT + 1];
+    char description[CPROWL_MAX_LENGTH_DESC + 1];
+    char priority[CPROWL_MAX_LENGTH_PRIORITY + 1];
+} cprowl_add_request_t;
+
+/* Request Helper Functions */
+static char* cprowl_request_get_api_string(cprowl_add_request_t *req);
+static void  cprowl_request_add_init(cprowl_add_request_t *req);
+static int   cprowl_request_add_apikey(cprowl_add_request_t *req, 
+                                      const char *apikey);
+static void  cprowl_request_free(cprowl_add_request_t *req);
+
+/* RPC request */
+static CURLcode cprowl_add(cprowl_add_request_t *req, int debug, 
                            int *http_error_code);
-static void     usage();
+
+static void usage();
 
 int main(int argc, char *argv[])
 {
@@ -52,7 +67,7 @@ int main(int argc, char *argv[])
     int http_error_code;
     int debug = FALSE;
     CURLcode res;
-    cprowl_request_add_t req = { "", "cprowl", "event", "description", 0 };
+    cprowl_add_request_t req;
     
     static struct option longopts[] = {
         { "api", required_argument, NULL, 'a' },
@@ -65,10 +80,15 @@ int main(int argc, char *argv[])
         { NULL, 0, NULL, 0 }
     };
 
+    cprowl_request_add_init(&req);
+
     while ((ch = getopt_long(argc, argv, "p:a:n:e:d:hz", longopts, NULL)) != -1) {
         switch (ch) {
         case 'a':
-            strncpy(req.api, optarg, CPROWL_MAX_LENGTH_API);
+            if (!cprowl_request_add_apikey(&req, optarg)) {
+                fprintf(stderr, "invalid api key (%s)\n", optarg);
+                goto done;
+            }
             break;
         case 'n':
             strncpy(req.app, optarg, CPROWL_MAX_LENGTH_APP);
@@ -92,9 +112,9 @@ int main(int argc, char *argv[])
     }
 
     /* argument validation */
-    if (!strcmp(req.api, "")) {
+    if (SLIST_EMPTY(&req.api_list)) {
         fprintf(stderr, "invalid api key\n");
-        exit(1);
+        goto done;
     }
 
     /* init curl */
@@ -103,7 +123,7 @@ int main(int argc, char *argv[])
     /* perform rpc call */
     if ((res=cprowl_add(&req, debug, &http_error_code)) != CURLE_OK) {
         fprintf(stderr, "%s", curl_easy_strerror(res));
-        exit(1);
+        goto done;
     }
 
     /* error handling */
@@ -119,7 +139,73 @@ int main(int argc, char *argv[])
             break;
     }
 
+done:
+    cprowl_request_free(&req);
     return 0;
+}
+
+static void 
+cprowl_request_add_init(cprowl_add_request_t *req)
+{
+    memset(req, 0, sizeof(*req));
+    SLIST_INIT(&req->api_list);
+    strcpy(req->app, "cprowl");
+    strcpy(req->event, "event");
+    strcpy(req->description, "description");
+    strcpy(req->priority, "0");
+}
+
+static void 
+cprowl_request_free(cprowl_add_request_t *req)
+{
+    while (!SLIST_EMPTY(&req->api_list)) {
+        api_node_t *n = SLIST_FIRST(&req->api_list);
+        SLIST_REMOVE_HEAD(&req->api_list, nodes);
+        free(n);
+    }
+}
+
+#define BLOCK_SIZE 1024
+
+static char* 
+cprowl_request_get_api_string(cprowl_add_request_t *req)
+{
+    api_node_t *node;
+    char *str = NULL, *p;
+    int mem_len = 0;
+    int str_len = 0;
+
+    /* this is not optimized */
+    str = malloc(BLOCK_SIZE);
+    str[0] = '\0';
+    mem_len += BLOCK_SIZE;
+
+    SLIST_FOREACH(node, &req->api_list, nodes) {
+        if (mem_len < (str_len + strlen(node->api) + 3)) {
+            str = realloc(str, BLOCK_SIZE);
+        }
+        strncat(str, node->api, CPROWL_MAX_LENGTH_API);
+        if (SLIST_END(&req->api_list) != SLIST_NEXT(node, nodes))
+            strcat(str, ",");
+    }
+
+    return str;
+}
+
+static int
+cprowl_request_add_apikey(cprowl_add_request_t *req, 
+                          const char *apikey)
+{
+    api_node_t *node;
+
+    if (strlen(apikey) != CPROWL_MAX_LENGTH_API) {
+        return FALSE;
+    }
+
+    node = malloc(sizeof(api_node_t));
+    strncpy(node->api, optarg, CPROWL_MAX_LENGTH_API);
+    SLIST_INSERT_HEAD(&req->api_list, node, nodes);
+    return TRUE;
 }
 
 static size_t 
@@ -130,12 +216,13 @@ curl_write_cb(void *ptr, size_t size, size_t nmemb, void *stream)
 }
 
 static CURLcode 
-cprowl_add(cprowl_request_add_t *req, int debug, int *http_error_code)
+cprowl_add(cprowl_add_request_t *req, int debug, int *http_error_code)
 {
     CURL *curl;
     CURLcode res;
     struct curl_httppost *formpost=NULL;
     struct curl_httppost *lastptr=NULL;
+    char *api_keys;
 
     *http_error_code = 0;
 
@@ -143,11 +230,13 @@ cprowl_add(cprowl_request_add_t *req, int debug, int *http_error_code)
         return CURLE_OUT_OF_MEMORY;
     }
 
+    api_keys = cprowl_request_get_api_string(req);
+
     /* add post data */
     curl_formadd(&formpost,
                  &lastptr,
                  CURLFORM_COPYNAME, "apikey",
-                 CURLFORM_PTRCONTENTS,  req->api,
+                 CURLFORM_PTRCONTENTS,  api_keys,
                  CURLFORM_END);
     curl_formadd(&formpost,
                  &lastptr,
@@ -183,6 +272,7 @@ cprowl_add(cprowl_request_add_t *req, int debug, int *http_error_code)
 
     curl_formfree(formpost);
     curl_easy_cleanup(curl);
+    free(api_keys);
     return res;
 }
 
