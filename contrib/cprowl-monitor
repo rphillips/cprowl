@@ -1,0 +1,19 @@
+#!/bin/sh
+
+API_KEY=""
+
+TMPLOG=$(mktemp)
+
+$@ | tee $TMPLOG
+if [ $? -eq 0 ]; then
+    rc_msg="success"
+else
+    rc_msg="failed"
+fi
+
+# trim data
+DATA=`tail $TMPLOG`
+
+cprowl -a $API_KEY -n "compile-$rc_msg" -d "$DATA"
+
+rm -f $TMPLOG
