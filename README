@@ -1,3 +1,11 @@
+What is cprowl?
+---------------
+
+cprowl is a command line utility to push notifications to the Prowl
+(http://prowl.weks.net/) service. I will be personally using cprowl to notify me
+when my projets are done building and whether they completed sucessfully or
+failed.
+
 Dependencies
 ------------
 
