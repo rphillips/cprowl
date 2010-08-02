@@ -264,6 +264,9 @@ cprowl_add(cprowl_add_request_t *req, int debug, int *http_error_code)
     curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
     curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+#ifdef WIN32
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+#endif
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
